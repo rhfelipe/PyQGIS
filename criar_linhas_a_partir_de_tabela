@@ -1,0 +1,34 @@
+# Obter a camada existente do projeto do QGIS
+camada = QgsProject.instance().mapLayersByName("Rodovia Raposo Tavares - Trechos")[0]
+
+# Criar uma nova camada de linhas
+nova_camada = QgsVectorLayer("LineString?crs=EPSG:4326", "Linhas_Criadas", "memory")
+
+# Definir os campos para a nova camada
+campos = camada.fields()
+nova_camada.dataProvider().addAttributes(campos)
+nova_camada.updateFields()
+
+# Obter o índice dos campos de latitude e longitude inicial e final
+idx_lat = camada.fields().indexFromName("Lat")
+idx_long = camada.fields().indexFromName("Long")
+idx_latf = camada.fields().indexFromName("LatF")
+idx_longf = camada.fields().indexFromName("LongF")
+
+# Iniciar a edição da nova camada
+nova_camada.startEditing()
+
+# Iterar sobre os recursos da camada existente e criar linhas na nova camada
+for feat in camada.getFeatures():
+    geom = QgsGeometry.fromPolylineXY([QgsPointXY(feat[idx_long], feat[idx_lat]), QgsPointXY(feat[idx_longf], feat[idx_latf])])
+    nova_feat = QgsFeature()
+    nova_feat.setGeometry(geom)
+    nova_feat.setAttributes(feat.attributes())
+    nova_camada.addFeature(nova_feat)
+
+# Salvar as alterações e finalizar a edição da nova camada
+nova_camada.commitChanges()
+nova_camada.updateExtents()
+
+# Adicionar a nova camada ao projeto
+QgsProject.instance().addMapLayer(nova_camada)
