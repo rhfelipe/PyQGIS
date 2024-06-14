@@ -1,0 +1,59 @@
+# Camada de entrada (geometria de pontos já aberta no QGIS)
+camada_pontos = QgsProject.instance().mapLayersByName('recobrimento_139_Lagomar_SRS')[0]  # Substitua pelo nome da sua camada
+
+# Criar uma nova camada de tabela
+nome_nova_camada = 'tabela_resultado'
+nova_camada = QgsVectorLayer('None', nome_nova_camada, 'memory')
+provider = nova_camada.dataProvider()
+
+# Definir os campos da tabela
+campos = [
+    QgsField('FAIXA', QVariant.String),
+    QgsField('LATITUDE', QVariant.Double),
+    QgsField('LONGITUDE', QVariant.Double),
+    QgsField('FUSO', QVariant.Int),
+    QgsField('ZONA_UTM', QVariant.String),
+    QgsField('COORDENADA_E', QVariant.Double),
+    QgsField('COORDENADA_N', QVariant.Double)
+]
+provider.addAttributes(campos)
+nova_camada.updateFields()
+
+# Índice da coluna 'Name_2'
+idx_name_2 = camada_pontos.fields().indexFromName('Name_2')
+
+# Iterar sobre os pontos e preencher a tabela
+for ponto in camada_pontos.getFeatures():
+    # Extrair coordenadas do ponto
+    latitude = ponto.geometry().asPoint().y()
+    longitude = ponto.geometry().asPoint().x()
+    
+    # Determinar o fuso UTM com base na longitude
+    fuso = int((longitude + 180) / 6) + 1
+    
+    # Determinar a zona UTM com base na latitude
+    zona_utm = 'S' if latitude < 0 else 'N'
+    
+    # Criar objeto de referência do sistema de coordenadas WGS84
+    crs_wgs84 = QgsCoordinateReferenceSystem('EPSG:4326')
+    
+    # Criar objeto de referência do sistema de coordenadas UTM
+    epsg_utm = 31960 + fuso
+    crs_utm = QgsCoordinateReferenceSystem(f'EPSG:{epsg_utm}')
+    
+    # Criar objeto de transformação de coordenadas
+    transform = QgsCoordinateTransform(crs_wgs84, crs_utm, QgsProject.instance())
+    
+    # Transformar coordenadas do ponto para UTM
+    point_utm = transform.transform(ponto.geometry().asPoint())
+    
+    # Obter o valor da coluna 'Name_2'
+    valor_name_2 = ponto.attributes()[idx_name_2]
+    
+    # Adicionar uma nova linha à tabela
+    nova_feature = QgsFeature()
+    nova_feature.setAttributes([valor_name_2, latitude, longitude, fuso, zona_utm, point_utm.x(), point_utm.y()])
+    provider.addFeature(nova_feature)
+
+# Adicionar a nova tabela ao projeto do QGIS
+QgsProject.instance().addMapLayer(nova_camada)
