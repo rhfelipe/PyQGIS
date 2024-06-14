@@ -1,0 +1,59 @@
+ #Função para calcular o comprimento da linha
+def calcular_comprimento_linha(geometry):
+    return geometry.length()
+
+# Função para extrair as coordenadas do primeiro e segundo vértices da linha
+def extrair_coordenadas(geometry):
+    first_point = geometry.vertexAt(0)
+    second_point = geometry.vertexAt(1)
+    return first_point.x(), first_point.y(), second_point.x(), second_point.y()
+
+# Função para calcular o azimute da linha
+def calcular_azimute(x1, y1, x2, y2):
+    dx = x2 - x1
+    dy = y2 - y1
+    angle = math.atan2(dy, dx)
+    angle_degrees = math.degrees(angle)
+    # Ajustar o ângulo para o intervalo [0, 360]
+    if angle_degrees < 0:
+        angle_degrees += 360
+    return angle_degrees
+
+# Camada de entrada (geometrias de linhas já abertas no QGIS)
+camada_linhas = QgsProject.instance().mapLayersByName('Reprojetado')[0]  # Substitua 'nome_da_camada' pelo nome da sua camada
+
+# Criar uma nova tabela de atributos sem geometria
+nome_nova_tabela = 'tabela_resultado'
+nova_tabela = QgsVectorLayer('None?crs=epsg:4326', nome_nova_tabela, 'memory')
+provider = nova_tabela.dataProvider()
+
+# Definir os campos da tabela
+campos = [
+    QgsField('Nome', QVariant.String),
+    QgsField('Comprimento (km)', QVariant.Double),
+    QgsField('E_1', QVariant.Double),
+    QgsField('N_1', QVariant.Double),
+    QgsField('E_2', QVariant.Double),
+    QgsField('N_2', QVariant.Double),
+    QgsField('NFotos', QVariant.Int),
+    QgsField('Azimute (°)', QVariant.Double)
+]
+provider.addAttributes(campos)
+nova_tabela.updateFields()
+
+# Iterar sobre as geometrias de linhas e preencher a tabela
+for feature in camada_linhas.getFeatures():
+    nome = feature['Name']  # Substitua 'Name' pelo nome do campo que contém o nome da linha
+    comprimento = feature.geometry().length()
+    coords = feature.geometry().asPolyline()
+    e1, n1 = coords[0]
+    e2, n2 = coords[1]
+    nfotos = round(comprimento/400) #400 é a aerobase. A distância em metros entre as fotos muda para cada projeto.
+    azimute = calcular_azimute(e1, n1, e2, n2)
+
+    nova_feature = QgsFeature()
+    nova_feature.setAttributes([nome, comprimento/1000, e1, n1, e2, n2, nfotos, azimute])
+    provider.addFeature(nova_feature)
+
+# Adicionar a nova tabela ao projeto do QGIS
+QgsProject.instance().addMapLayer(nova_tabela)
